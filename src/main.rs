@@ -1,8 +1,10 @@
+// #![allow(unused_imports)]
+
 use clap::{command, Arg, Command};
-use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_json::{from_str};
 use std::fs;
+
 
 /*
     Todo Business Requirements / User Stories:
@@ -19,72 +21,88 @@ A Task has:
 
 */
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Task {
     id: u32,
     title: String,
     description: String,
 }
 
+struct TaskManager {
+    tasks: Vec<Task>,
+}
 
 
-// Load tasks from JSON file
-// fn load_tasks() -> HashMap<u32, Task> {
-//     let data = fs::read_to_string("todos.json").unwrap();
-//     let tasks: HashMap<u32, Task> = from_str(&data).unwrap();
-//     tasks
-// }
+struct TaskStats {
+    total: usize,
+    last_id: u32,
+}
 
+impl TaskManager {
+    fn new(json_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let data = fs::read_to_string(json_path)?;
+        let tasks: Vec<Task> = from_str(&data)?;
+        Ok(TaskManager { tasks })
+    }
 
-
-
-fn main() {
-
-     // Use proper path relative to src directory
-    let data = match fs::read_to_string("src/todos.json") {
-        Ok(content) => content,
-        Err(e) => {
-            println!("Error reading file: {}", e);
-            return;
+    fn get_stats(&self) -> TaskStats {
+        TaskStats {
+            total: self.tasks.len(),
+            last_id: self.tasks.iter().map(|t| t.id).max().unwrap_or(0),
         }
-    };
+    }
 
-    let tasks = match from_str::<Vec<Task>>(&data) {
-        Ok(t) => t,
-        Err(e) => {
-            println!("Error parsing JSON: {}", e);
-            return;
+    fn list_tasks(&self) {
+        println!("\n=== Tasks List ===");
+        println!("{:-<50}", "");
+        for task in &self.tasks {
+            println!("Title: {}", task.title);
+
+            // todo: ID and Description will be reserved for read subcommand
+            // println!("ID: {}", task.id);
+            // println!("Description: {}", task.description);
+            println!("{:-<50}", "");
         }
-    };
+        
+        let stats = self.get_stats();
+        println!("Total Tasks: {}", stats.total);
+        // println!("Last ID: {}", stats.last_id);
+    }
 
-    println!("{:?}", tasks);
+        fn create_task(&mut self, title: String, description: String) -> Result<Task, Box<dyn std::error::Error>> {
+        let new_id = self.get_stats().last_id + 1;
+        
+        let task = Task {
+            id: new_id,
+            title,
+            description,
+        };
+        
+        self.tasks.push(task.clone()); // need derive Clone for Task
+        
+        // Save to JSON file
+        let json = serde_json::to_string_pretty(&self.tasks)?;
+        fs::write("src/todos.json", json)?;
+        
+        Ok(task)
+    }
+}
 
 
-    // Parse JSON into Task struct
-    // let task: Task = match from_str(JSON) {
-    //     Ok(task) => task,
-    //     Err(e) => {
-    //         println!("Error parsing JSON: {}", e);
-    //         return;
-    //     }
-    // };
 
-    // Print parsed task
-    // println!("Parsed Task:");
-    // println!("ID: {}", task.id);
-    // println!("Title: {}", task.title);
-    // println!("Description: {}", task.description);
 
-    // Create a HashMap to hold tasks with an ID as the key
-    let mut tasks: HashMap<u32, Task> = HashMap::new();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    let mut task_manager = TaskManager::new("src/todos.json")?;
+
 
     let matches = command!()
         .about("A simple CLI ToDo application that demonstrates CRUD operations using Rust with Clap")
         .version("0.1.0")
 
-         .arg_required_else_help(true)
-        .subcommand_required(true)
-
+        // .arg_required_else_help(true)
+        // .subcommand_required(true)
+        // returns: error: process didn't exit successfully: `target\debug\todo-rust-cli.exe` (exit code: 2)
 
         .subcommand(
             Command::new("create")
@@ -134,28 +152,22 @@ fn main() {
         
         match matches.subcommand() {
         Some(("create", sub_matches)) => {
-            
-            // Get passed in values
-            let title = sub_matches.get_one::<String>("title").unwrap();
-            let description = sub_matches.get_one::<String>("description").unwrap();
+            let title = sub_matches.get_one::<String>("title")
+                .expect("Required")
+                .to_string();
+            let description = sub_matches.get_one::<String>("description")
+                .expect("Required")
+                .to_string();
 
-
-            // Print out the values
-            println!("Created task: {}", title);
-            println!("Description: {}", description);
-
-
-            // Generate a simple ID (this could be more complex)
-            let id = tasks.len() as u32 + 1;
-
-            // Create a new Task and insert it into the tasks HashMap
-            let task = Task {
-                id,
-                title: title.clone(),
-                description: description.clone(),
-            };
-
-            tasks.insert(task.id, task);
+            match task_manager.create_task(title, description) {
+                Ok(task) => {
+                    println!("\nTask created successfully!");
+                    println!("ID: {}", task.id);
+                    println!("Title: {}", task.title);
+                    println!("Description: {}", task.description);
+                }
+                Err(e) => println!("Failed to create task: {}", e),
+            }
         }
 
         Some(("delete", sub_matches)) => {
@@ -163,17 +175,20 @@ fn main() {
             println!("Deleting task with ID: {}", id);
         }
 
+        Some(("list", _)) => {
+            task_manager.list_tasks();
+        }
 
         _ => {
-        } // This branch is technically unreachable due to subcommand_required
+            println!("No subcommand was used. Use help for usage information.");
+        } // This branch will be technically unreachable if subcommand_required is enabled
     }
 
 
 
-    // println!("\nAll tasks:");
-    // for (id, task) in &tasks {
-    //     println!("ID: {}, Title: {}, Description: {}", id, task.title, task.description);
-    // }
-
-
+    // Return status
+    Ok(())
 }
+
+
+
