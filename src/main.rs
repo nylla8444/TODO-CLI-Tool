@@ -45,6 +45,7 @@ impl TaskManager {
         Ok(TaskManager { tasks })
     }
 
+    // --------- GET STATS
     fn get_stats(&self) -> TaskStats {
         TaskStats {
             total: self.tasks.len(),
@@ -52,14 +53,14 @@ impl TaskManager {
         }
     }
 
+    // --------- LIST ALL TASKS
     fn list_tasks(&self) {
         println!("\n=== Tasks List ===");
         println!("{:-<50}", "");
         for task in &self.tasks {
-            println!("Title: {}", task.title);
+            println!("{} - {}",task.id, task.title);
 
-            // todo: ID and Description will be reserved for read subcommand
-            // println!("ID: {}", task.id);
+            // todo: Description will be reserved for read subcommand
             // println!("Description: {}", task.description);
             println!("{:-<50}", "");
         }
@@ -69,7 +70,8 @@ impl TaskManager {
         // println!("Last ID: {}", stats.last_id);
     }
 
-        fn create_task(&mut self, title: String, description: String) -> Result<Task, Box<dyn std::error::Error>> {
+    // --------- CREATE NEW TASK 
+    fn create_task(&mut self, title: String, description: String) -> Result<Task, Box<dyn std::error::Error>> {
         let new_id = self.get_stats().last_id + 1;
         
         let task = Task {
@@ -77,15 +79,22 @@ impl TaskManager {
             title,
             description,
         };
-        
+    
         self.tasks.push(task.clone()); // need derive Clone for Task
-        
+    
         // Save to JSON file
         let json = serde_json::to_string_pretty(&self.tasks)?;
         fs::write("src/todos.json", json)?;
         
         Ok(task)
     }
+
+    // --------- READ TASK
+    fn read_task(&self, id: u32) -> Result<Task, Box<dyn std::error::Error>> {
+        let task = self.tasks.iter().find(|t| t.id == id).ok_or("Task not found")?;
+        Ok(task.clone())
+    }
+
 }
 
 
@@ -124,17 +133,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
 
 
-         .subcommand(
+        .subcommand(
             Command::new("read")
                 .about("Reads task's details")
+                .arg(
+                // Positional argument - no short/long flags needed
+                Arg::new("id")
+                    .help("The ID of the task to read")
+                    .required(true)
+                    .index(1)  // First position
+                )
         )
 
-         .subcommand(
+        .subcommand(
             Command::new("update")
                 .about("Update a task details")
         )
 
-         .subcommand(
+
+        .subcommand(
             Command::new("delete")
                 .about("Delete a task")
         )
@@ -151,11 +168,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         
         match matches.subcommand() {
-        Some(("create", sub_matches)) => {
-            let title = sub_matches.get_one::<String>("title")
+        Some(("create", args)) => {
+            let title = args.get_one::<String>("title")
                 .expect("Required")
                 .to_string();
-            let description = sub_matches.get_one::<String>("description")
+            let description = args.get_one::<String>("description")
                 .expect("Required")
                 .to_string();
 
@@ -170,13 +187,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        // Todo: not yet finished
         Some(("delete", sub_matches)) => {
             let id = sub_matches.get_one::<String>("id").unwrap();
             println!("Deleting task with ID: {}", id);
         }
 
+
         Some(("list", _)) => {
             task_manager.list_tasks();
+        }
+
+
+        Some(("read", arg_id)) => {
+            let id = arg_id.get_one::<String>("id")
+            .unwrap()
+            .parse::<u32>() // turn string into u32 (integer)
+            .unwrap_or_else(|_| {
+                println!("Error: ID must be a positive number");
+                std::process::exit(1);
+            });
+            
+            match task_manager.read_task(id) {
+                Ok(task) => {
+                    println!("\n|| ===== Task details ===== ||");
+                    println!("ID: {}", task.id);
+                    println!("Title: {}", task.title);
+                    println!("Description:\n {}\n", task.description);
+                },
+                Err(e) => println!("Error: {}", e),
+            }
         }
 
         _ => {
