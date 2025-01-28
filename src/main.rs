@@ -11,14 +11,17 @@ use std::fs;
 
  DONE ⁃ I as a User must be able to CREATE a task with the Web App / CLI
  DONE ⁃ I as a User must be able to READ a certain task with the Web App / CLI
- ⁃ I as a User must be able to UPDATE a task with the Web App / CLI
+ DONE I as a User must be able to UPDATE a task with the Web App / CLI
  DONE ⁃ I as a User must be able to DELETE a task with the Web App / CLI
  DONE ⁃ I as a User must be able to VIEW ALL (list) my tasks with the Web App / CLI
 
 A Task has:
- ⁃ A Title
- ⁃ A Description
+- An unique ID
+⁃ A Title
+⁃ A Description
 
+
+TODO: Understand overall code and refactor some if needed
 */
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -74,7 +77,7 @@ impl TaskManager {
     }
 
 
-        // --------- READ TASK
+    // --------- READ TASK
     fn read_task(&self, id: u32) -> Result<Task, Box<dyn std::error::Error>>{
         let task = self.tasks.iter()
                 .find(|t| t.id == id)
@@ -82,6 +85,31 @@ impl TaskManager {
 
         Ok(task.clone())
     }
+
+
+    // --------- UPDATE TASK
+    fn update_task(&mut self, id: u32, title: String, description: String) -> Result<Task, Box<dyn std::error::Error>> {
+        // Find the task index that matches the id
+        let task_index = self.tasks
+            .iter()
+            .position(|t| t.id == id)
+            .ok_or_else(|| format!("Task with id {} not found", id))?;
+        
+        // Update the task
+        let task = &mut self.tasks[task_index];
+        task.title = title;
+        task.description = description;
+        
+        // Clone before saving
+        let updated_task = task.clone();
+        
+        // Save to JSON file
+        let json = to_string_pretty(&self.tasks)?;
+        fs::write("src/todos.json", json)?;
+        
+        Ok(updated_task)
+    }
+
 
     // --------- DELETE TASK
     fn delete_task(&mut self, id: u32) -> Result<(), Box<dyn std::error::Error>> {
@@ -109,8 +137,6 @@ impl TaskManager {
         for task in &self.tasks {
             println!("{} - {}",task.id, task.title);
 
-            // todo: Description will be reserved for read subcommand
-            // println!("Description: {}", task.description);
             println!("{:-<50}", "");
         }
         
@@ -179,7 +205,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Update
         .subcommand(
             Command::new("update")
-                .about("Update a task details")
+                .about("Update a task details\nMore info: update --help")
+                .arg(
+                    // Positional argument - no short/long flags needed
+                    Arg::new("id")
+                        .help("The ID of the task to read")
+                        .required(true)
+                        .index(1)  // First position
+                )
+                .arg(
+                    Arg::new("title")
+                    .short('t')
+                    .long("title")
+                    .required(false) // not required because maybe you only want to update the description
+                    .help("Task's Title to be Updated")
+                )
+                .arg(
+                    Arg::new("description")
+                    .short('d')
+                    .long("description")
+                    .required(false) // not required because maybe you only want to update the title
+                    .help("Task's Description to be Updated")
+                )
         )
 
 
@@ -207,13 +254,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
     
 
-    // Commands Functions
+// ======================= Commands Functionality  ======================= //
         match matches.subcommand() {
 
         Some(("create", args)) => {
             let title = args.get_one::<String>("title")
                 .expect("Required")
                 .to_string();
+
             let description = args.get_one::<String>("description")
                 .expect("Required")
                 .to_string();
@@ -232,7 +280,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Some(("read", arg_id)) => {
             let id = arg_id.get_one::<String>("id")
-                .unwrap()
+                .expect("ID is required")
                 .parse::<u32>() // turn string into u32 (integer)
                 .unwrap_or_else(|_| {
                     println!("Error: ID must be a positive number");
@@ -250,10 +298,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        Some(("update", args)) => {
+            // Required ID parsing
+            let id = args.get_one::<String>("id")
+                .expect("ID is required")
+                .parse::<u32>()
+                .unwrap_or_else(|_| {
+                    println!("Error: ID must be a positive number");
+                    std::process::exit(1);
+                });
+
+            // Get existing task
+            let existing_task = task_manager.read_task(id)?;
+
+            // Optional title and description
+            let title = args.get_one::<String>("title")
+                .map(|s| s.to_string())
+                .unwrap_or(existing_task.title);
+
+            let description = args.get_one::<String>("description")
+                .map(|s| s.to_string())
+                .unwrap_or(existing_task.description);
+
+            match task_manager.update_task(id, title, description) {
+                Ok(task) => println!("Task updated successfully: {:?}", task),
+                Err(e) => println!("Error updating task: {}", e),
+            }
+        }
 
         Some(("delete", arg_id)) => {
             let id = arg_id.get_one::<String>("id")
-                .unwrap()
+                .expect("ID is required")
                 .parse::<u32>() // turn string into u32 (integer)
                 .unwrap_or_else(|_| {
                     println!("Error: ID must be a positive number");
