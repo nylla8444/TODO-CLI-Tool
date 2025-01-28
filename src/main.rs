@@ -2,18 +2,18 @@
 
 use clap::{command, Arg, Command};
 use serde::{Serialize, Deserialize};
-use serde_json::{from_str};
+use serde_json::{from_str, to_string_pretty};
 use std::fs;
 
 
 /*
     Todo Business Requirements / User Stories:
 
- ⁃ I as a User must be able to create a task with the Web App / CLI
- ⁃ I as a User must be able to read a certain task with the Web App / CLI
- ⁃ I as a User must be able to update a task with the Web App / CLI
- ⁃ I as a User must be able to delete a task with the Web App / CLI
- ⁃ I as a User must be able to view all my tasks with the Web App / CLI
+ DONE ⁃ I as a User must be able to CREATE a task with the Web App / CLI
+ DONE ⁃ I as a User must be able to READ a certain task with the Web App / CLI
+ ⁃ I as a User must be able to UPDATE a task with the Web App / CLI
+ DONE ⁃ I as a User must be able to DELETE a task with the Web App / CLI
+ DONE ⁃ I as a User must be able to VIEW ALL (list) my tasks with the Web App / CLI
 
 A Task has:
  ⁃ A Title
@@ -53,22 +53,6 @@ impl TaskManager {
         }
     }
 
-    // --------- LIST ALL TASKS
-    fn list_tasks(&self) {
-        println!("\n=== Tasks List ===");
-        println!("{:-<50}", "");
-        for task in &self.tasks {
-            println!("{} - {}",task.id, task.title);
-
-            // todo: Description will be reserved for read subcommand
-            // println!("Description: {}", task.description);
-            println!("{:-<50}", "");
-        }
-        
-        let stats = self.get_stats();
-        println!("Total Tasks: {}", stats.total);
-        // println!("Last ID: {}", stats.last_id);
-    }
 
     // --------- CREATE NEW TASK 
     fn create_task(&mut self, title: String, description: String) -> Result<Task, Box<dyn std::error::Error>> {
@@ -89,11 +73,54 @@ impl TaskManager {
         Ok(task)
     }
 
-    // --------- READ TASK
-    fn read_task(&self, id: u32) -> Result<Task, Box<dyn std::error::Error>> {
-        let task = self.tasks.iter().find(|t| t.id == id).ok_or("Task not found")?;
+
+        // --------- READ TASK
+    fn read_task(&self, id: u32) -> Result<Task, Box<dyn std::error::Error>>{
+        let task = self.tasks.iter()
+                .find(|t| t.id == id)
+                .ok_or("Task not found")?;
+
         Ok(task.clone())
     }
+
+    // --------- DELETE TASK
+    fn delete_task(&mut self, id: u32) -> Result<(), Box<dyn std::error::Error>> {
+        // Remove task with matching id
+        self.tasks.iter()
+                .find(|t| t.id == id)
+                .ok_or("Task not found")?;
+
+
+        self.tasks.retain(|task| task.id != id);
+        // only retain values that is not equal to the passed id value
+
+        // Save updated tasks to JSON
+        let json = to_string_pretty(&self.tasks)?;
+        fs::write("src/todos.json", json)?;
+        
+        Ok(())
+    }
+
+
+    // --------- LIST ALL TASKS
+    fn list_tasks(&self) {
+        println!("\n=== Tasks List ===");
+        println!("{:-<50}", "");
+        for task in &self.tasks {
+            println!("{} - {}",task.id, task.title);
+
+            // todo: Description will be reserved for read subcommand
+            // println!("Description: {}", task.description);
+            println!("{:-<50}", "");
+        }
+        
+        let stats = self.get_stats();
+        println!("\nTotal Tasks: {}", stats.total);
+        // println!("Last ID: {}", stats.last_id);
+    }
+
+
+
 
 }
 
@@ -113,6 +140,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .subcommand_required(true)
         // returns: error: process didn't exit successfully: `target\debug\todo-rust-cli.exe` (exit code: 2)
 
+
+        // Create
         .subcommand(
             Command::new("create")
                 .about("Creates a new task.\nMore info: create --help")
@@ -133,30 +162,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
 
 
+        // Read
         .subcommand(
             Command::new("read")
                 .about("Reads task's details")
                 .arg(
-                // Positional argument - no short/long flags needed
-                Arg::new("id")
-                    .help("The ID of the task to read")
-                    .required(true)
-                    .index(1)  // First position
+                    // Positional argument - no short/long flags needed
+                    Arg::new("id")
+                        .help("The ID of the task to read")
+                        .required(true)
+                        .index(1)  // First position
                 )
         )
 
+
+        // Update
         .subcommand(
             Command::new("update")
                 .about("Update a task details")
         )
 
 
+        // Delete
         .subcommand(
             Command::new("delete")
                 .about("Delete a task")
+                .arg(
+                    // Positional argument - no short/long flags needed
+                    Arg::new("id")
+                        .help("The ID of the task to read")
+                        .required(true)
+                        .index(1)  // First position
+                )
+                
         )
 
-
+        // List
         .subcommand(
             Command::new("list")
                 .about("List all tasks")
@@ -166,8 +207,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
     
 
-        
+    // Commands Functions
         match matches.subcommand() {
+
         Some(("create", args)) => {
             let title = args.get_one::<String>("title")
                 .expect("Required")
@@ -187,26 +229,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // Todo: not yet finished
-        Some(("delete", sub_matches)) => {
-            let id = sub_matches.get_one::<String>("id").unwrap();
-            println!("Deleting task with ID: {}", id);
-        }
-
-
-        Some(("list", _)) => {
-            task_manager.list_tasks();
-        }
-
 
         Some(("read", arg_id)) => {
             let id = arg_id.get_one::<String>("id")
-            .unwrap()
-            .parse::<u32>() // turn string into u32 (integer)
-            .unwrap_or_else(|_| {
-                println!("Error: ID must be a positive number");
-                std::process::exit(1);
-            });
+                .unwrap()
+                .parse::<u32>() // turn string into u32 (integer)
+                .unwrap_or_else(|_| {
+                    println!("Error: ID must be a positive number");
+                    std::process::exit(1);
+                });
             
             match task_manager.read_task(id) {
                 Ok(task) => {
@@ -219,6 +250,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+
+        Some(("delete", arg_id)) => {
+            let id = arg_id.get_one::<String>("id")
+                .unwrap()
+                .parse::<u32>() // turn string into u32 (integer)
+                .unwrap_or_else(|_| {
+                    println!("Error: ID must be a positive number");
+                    std::process::exit(1);
+                });
+            println!("Deleting task {}...", id);
+
+            match task_manager.delete_task(id){
+                Ok(_) => {
+                    println!("Task {} deleted successfully",id );
+                },
+                Err(e) => println!("Error: {}", e),
+            }
+        
+        }
+
+
+        Some(("list", _)) => {
+            task_manager.list_tasks();
+        }
+
+
+      
         _ => {
             println!("No subcommand was used. Use help for usage information.");
         } // This branch will be technically unreachable if subcommand_required is enabled
