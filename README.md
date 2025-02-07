@@ -21,7 +21,7 @@ Built with Rust, using the following modules:
 
 2. Clone or download this repository.
 ```bash
-git clone https://github.com/KeebyResearch/TODO-CLI-Tool.git
+git clone https://github.com/nylla8444/TODO-CLI-Tool.git
 ```
 3. Navigate to the project folder /src and run:
 ```bash
