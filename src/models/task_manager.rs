@@ -6,6 +6,8 @@ use crate::models::{Task, TaskStats}; // Internal Task and TaskStats structs
 pub struct TaskManager {
     /// In-memory collection of tasks loaded from JSON and updated at runtime.
     pub tasks: Vec<Task>,
+    /// Path to the JSON file where tasks are stored.
+    json_path: String,
 }
 
 impl TaskManager {
@@ -14,7 +16,10 @@ impl TaskManager {
         // Read the entire file as a string, parse it into a Vec<Task>, and store it in the TaskManager.
         let data = fs::read_to_string(json_path)?;
         let tasks: Vec<Task> = from_str(&data)?;
-        Ok(TaskManager { tasks })
+        Ok(TaskManager { 
+            tasks,
+            json_path: json_path.to_string(),
+        })
     }
 
     /// Provides basic stats about the current task list (e.g. total number, last used ID).
@@ -34,7 +39,7 @@ impl TaskManager {
 
         // Serialize the updated tasks vector to JSON, then write it to disk.
         let json = to_string_pretty(&self.tasks)?;
-        fs::write("data/todos.json", json)?;
+        fs::write(&self.json_path, json)?;
 
         Ok(task)
     }
@@ -65,7 +70,7 @@ impl TaskManager {
         // Clone the updated task before writing to disk.
         let updated_task = task.clone();
         let json = to_string_pretty(&self.tasks)?;
-        fs::write("data/todos.json", json)?;
+        fs::write(&self.json_path, json)?;
 
         Ok(updated_task)
     }
@@ -79,7 +84,7 @@ impl TaskManager {
 
         // Save the updated tasks to disk.
         let json = to_string_pretty(&self.tasks)?;
-        fs::write("data/todos.json", json)?;
+        fs::write(&self.json_path, json)?;
 
         Ok(())
     }

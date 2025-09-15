@@ -19,17 +19,22 @@ Built with Rust, using the following modules:
 
 ## Setup
 
-2. Clone or download this repository.
+1. Clone or download this repository.
 ```bash
-git clone https://github.com/nylla8444/TODO-CLI-Tool.git
+git clone https://github.com/KeebyResearch/TODO-CLI-Tool.git
 ```
-3. Navigate to the project folder /src and run:
+2. Navigate to the project root folder (where Cargo.toml is located) and run:
 ```bash
+cd Rust-TODO-CLI
 cargo build
 ```
 
 ## Usage
-Run the CLI with:
+Run the CLI from the project root directory with:
+```bash
+cargo run [SUBCOMMAND]
+```
+
 Available subcommands:
 - **create**: Add a new task.  
   Example: `cargo run create --title "Buy Groceries" --description "Milk, Eggs, Bread"`
@@ -45,6 +50,8 @@ Available subcommands:
   Example: `cargo run help`
 
 ## Project Structure
+- **data/**  
+  - `todos.json`: JSON file storing all tasks (created automatically if it doesn't exist).
 - **src/models**  
   - `task.rs`: Task data and serialization.  
   - `task_manager.rs`: Methods to create, read, update, delete, and list tasks.
@@ -57,5 +64,10 @@ Available subcommands:
   - Initializes TaskManager from data/todos.json.
   - Parses CLI input.
   - Dispatches subcommands to the corresponding handlers.
+
+## Important Notes
+- Always run commands from the project root directory (where `Cargo.toml` is located)
+- The `data/` folder should be in the project root alongside `src/`
+- Tasks are automatically saved to `data/todos.json` after each operation
 
 Feel free to extend this CLI or use it as a base for more advanced Rust projects!
